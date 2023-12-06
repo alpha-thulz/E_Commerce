@@ -6,6 +6,7 @@ import io.javalin.Javalin;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import kong.unirest.JsonNode;
+import za.co.tyaphile.database.DatabaseManager;
 import za.co.tyaphile.order.Order;
 import za.co.tyaphile.order.OrdersDB;
 import za.co.tyaphile.product.Product;
@@ -44,6 +45,9 @@ public class ECommerceServer {
 
     public ECommerceServer() {
         init();
+
+        new DatabaseManager();
+
         server.post("/product", this::addProduct);
         server.post("/remove-products", this::deleteProduct);
         server.post("/products", this::getProductList);
@@ -76,16 +80,16 @@ public class ECommerceServer {
 
     private void deleteUser(Context context) {
         String id = context.pathParam("id");
-        users.removeUser(id);
+        DatabaseManager.removeUser(id);
     }
 
     private void addUser(Context context) {
         Map<?, ?> request = (Map<?, ?>) new Gson().fromJson(context.body(), Map.class);
-        User user = new User(request.get("name").toString(), request.get("email").toString());
-        Optional<User> optionalUser = users.getUsers().stream()
-                .filter(x -> x.getName().equals(user.getName()) && x.getEmail().equals(user.getEmail()))
-                .findFirst();
-        if(optionalUser.isEmpty()) users.addUser(user);
+
+        DatabaseManager.addUser(request.get("name").toString(), request.get("email").toString());
+        User user = DatabaseManager.getUser(request.get("name").toString(), request.get("email").toString());
+
+        assert user != null;
         context.json(getUserJson(user));
     }
 
@@ -93,29 +97,21 @@ public class ECommerceServer {
         List<Product> allProducts;
         try {
             ArrayList<?> items = (ArrayList<?>) new Gson().fromJson(context.body(), ArrayList.class);
-            allProducts = products.getAllProducts().stream()
-                    .map(product -> {
-                        for (Object id:items) {
-                            if (String.valueOf(id).equals(product.getProductId())) return product;
-                        }
-                        return null;
-                    })
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-
+            allProducts = items.stream().map(x -> DatabaseManager.getProduct(String.valueOf(x))).toList();
             List<String> response = allProducts.stream().map(this::getProductJson).collect(Collectors.toList());
             context.json(response);
         } catch (Exception e) {
-            List<String> response = products.getAllProducts().stream().map(this::getProductJson).collect(Collectors.toList());
+            allProducts = DatabaseManager.getAllProducts();
+            List<String> response = allProducts.stream().map(this::getProductJson).collect(Collectors.toList());
             context.json(response);
         }
     }
 
     private void getProduct(Context context) {
-        Optional<Product> product = products.getAllProducts().stream().filter(x -> x.getProductId().equals(context.pathParam("id"))).findFirst();
-        if (product.isPresent()) {
+        Product product = DatabaseManager.getProduct(context.pathParam("id"));
+        if (product != null) {
             context.status(HttpStatus.OK);
-            context.json(getProductJson(product.get()));
+            context.json(getProductJson(product));
         } else {
             context.status(HttpStatus.NOT_FOUND);
             context.json(getErrorMessage(HttpStatus.NOT_FOUND, "Product ID: " + context.pathParam("id") + " not found"));
@@ -126,7 +122,7 @@ public class ECommerceServer {
         try {
             ArrayList<?> items = (ArrayList<?>) new Gson().fromJson(context.body(), ArrayList.class);
             context.status(HttpStatus.OK);
-            items.forEach(x -> products.removeProduct(x.toString()));
+            items.forEach(x -> DatabaseManager.removeProduct(x.toString()));
         } catch (Exception e) {
             context.status(HttpStatus.BAD_REQUEST);
             context.json(getErrorMessage(HttpStatus.BAD_REQUEST, e.getMessage()));
@@ -136,11 +132,12 @@ public class ECommerceServer {
     private void addProduct(Context ctx) {
         final JsonNode node = new JsonNode(ctx.body());
         try {
-            Product product = new Product(node.getObject().getString("name"),
+            Product product = DatabaseManager.addProduct(node.getObject().getString("name"),
                     node.getObject().getString("description"),
                     Double.parseDouble(node.getObject().getString("price")));
-            products.addProduct(product);
             ctx.status(HttpStatus.OK);
+
+            assert product != null;
             ctx.json(getProductJson(product));
         } catch (Exception e) {
             ctx.status(HttpStatus.BAD_REQUEST);

@@ -5,7 +5,9 @@ import com.google.gson.JsonObject;
 import kong.unirest.HttpResponse;
 import kong.unirest.JsonNode;
 import kong.unirest.Unirest;
+import kong.unirest.json.JSONObject;
 import org.junit.jupiter.api.*;
+import za.co.tyaphile.database.DatabaseManager;
 
 import java.util.*;
 
@@ -53,7 +55,12 @@ public class ServerTest {
                 .body(new Gson().toJson(user))
                 .asJson();
 
+        JSONObject json = response.getBody().getObject();
+
         assertEquals(200, response.getStatus());
+        assertNotNull(json.toMap().get("id"));
+        assertEquals(user.get("name"), json.toMap().get("name").toString());
+        assertEquals(user.get("email"), json.toMap().get("email").toString());
     }
 
     @Test
@@ -66,7 +73,12 @@ public class ServerTest {
                 .body(new Gson().toJson(user))
                 .asJson();
 
+        JSONObject json = response.getBody().getObject();
+
         assertEquals(200, response.getStatus());
+        assertNotNull(json.toMap().get("id"));
+        assertEquals(user.get("name"), json.toMap().get("name").toString());
+        assertEquals(user.get("email"), json.toMap().get("email").toString());
 
         String id = response.getBody().getObject().toMap().get("id").toString();
         response = Unirest.delete("http://localhost:5000/customer/" + id).asJson();
@@ -195,6 +207,19 @@ public class ServerTest {
     }
 
     @Test
+    void testNoPricePlaced() {
+        JsonObject json = new JsonObject();
+        json.addProperty("name", "USB Flash drive");
+        json.addProperty("description", "64 GB storage");
+
+        HttpResponse<JsonNode> response = Unirest.post("http://localhost:5000/product")
+                .body(json)
+                .asJson();
+
+        assertEquals(400, response.getStatus());
+    }
+
+    @Test
     void testAddProductMissingDetails() {
         JsonObject json = new JsonObject();
         json.addProperty("name", "USB Flash drive");
@@ -226,6 +251,7 @@ public class ServerTest {
 
     @BeforeAll
     static void setup() {
+        new DatabaseManager(":memory:");
         server = new ECommerceServer();
         server.start();
 
