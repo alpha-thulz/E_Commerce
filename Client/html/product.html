@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Product</title>
+        <link rel="stylesheet" href="css/styles.css">
+    </head>
+    <body onload="viewProduct()">
+        <section>
+            <table>
+                <tr>
+                    <td><h3>Item</h3></td>
+                    <td id="item-name">Item name</td>
+                </tr>
+                <tr>
+                    <td><h3>Description</h3></td>
+                    <td id="item-description">Item description</td>
+                </tr>
+                <tr>
+                    <td><h3>Price</h3></td>
+                    <td id="item-price">Item price</td>
+                </tr>
+            </table>
+            <img src="img/delete.png" alt="delete" onclick="deleteProduct()" class="delete"/>
+            <img src="img/edit.png" alt="edit" onclick="editProduct()" class="edit"/>
+
+            <form onsubmit="requestUpdate(this)">
+                <label for="update_name"></label>
+                <input id="update_name" type="text" name="update_name"><br/>
+                <label for="update_desc"></label>
+                <input id="update_desc" type="text" name="update_desc"><br/>
+                <label for="update_price"></label>
+                <input id="update_price" type="text" name="update_price"><br/>
+                <input type="hidden" name="id" value="c7c5410f-881e-44c8-a5c7-92c8c8d11218">
+                <input type="submit" value="Update product">
+            </form>
+        </section>
+    </body>
+    <script src="js/script.js"></script>
+</html>

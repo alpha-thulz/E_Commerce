@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import io.javalin.Javalin;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
+import io.javalin.plugin.bundled.CorsPluginConfig;
 import kong.unirest.JsonNode;
 import za.co.tyaphile.database.DatabaseManager;
 import za.co.tyaphile.order.Order;
@@ -14,6 +15,7 @@ import za.co.tyaphile.product.ProductsDB;
 import za.co.tyaphile.user.User;
 import za.co.tyaphile.user.UserDB;
 
+import java.sql.SQLException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -28,6 +30,7 @@ public class ECommerceServer {
         server = Javalin.create(cfg -> {
             cfg.http.defaultContentType = "application/json";
             cfg.showJavalinBanner = false;
+            cfg.plugins.enableCors(cors -> cors.add(CorsPluginConfig::anyHost));
         });
     }
 
@@ -45,13 +48,15 @@ public class ECommerceServer {
 
     public ECommerceServer() {
         new DatabaseManager();
-        createMockProducts();  // Comment out to disable creating mock items
+//        createMockProducts();  // Comment out to disable creating mock items
         init();
 
         server.post("/product", this::addProduct);
         server.post("/remove-products", this::deleteProduct);
         server.post("/products", this::getProductList);
+
         server.get("/product/{id}", this::getProduct);
+        server.put("/product/{id}", this::updateProduct);
 
         server.post("/order", this::addOrder);
 
@@ -74,7 +79,6 @@ public class ECommerceServer {
             order.setTotal((float) product.getPrice());
 
             ordersDB.addOrder(order);
-//            System.out.println(" > " + new Gson().toJson(order));
         }
     }
 
@@ -95,16 +99,21 @@ public class ECommerceServer {
 
     private void getProductList(Context context) {
         List<Product> allProducts;
+        List<String> response;
+
+//        Map<String, String> response = allProducts.stream()
+//                .collect(Collectors.toMap(Product::getProductId, this::getProductJson));
+
         try {
             ArrayList<?> items = (ArrayList<?>) new Gson().fromJson(context.body(), ArrayList.class);
             allProducts = items.stream().map(x -> DatabaseManager.getProduct(String.valueOf(x))).toList();
-            List<String> response = allProducts.stream().map(this::getProductJson).collect(Collectors.toList());
-            context.json(response);
+            response = allProducts.stream().map(this::getProductJson).collect(Collectors.toList());
         } catch (Exception e) {
             allProducts = DatabaseManager.getAllProducts();
-            List<String> response = allProducts.stream().map(this::getProductJson).collect(Collectors.toList());
-            context.json(response);
+            response = allProducts.stream().map(this::getProductJson).collect(Collectors.toList());
         }
+
+        context.json(new Gson().toJson(response));
     }
 
     private void getProduct(Context context) {
@@ -140,6 +149,24 @@ public class ECommerceServer {
             assert product != null;
             ctx.json(getProductJson(product));
         } catch (Exception e) {
+            ctx.status(HttpStatus.BAD_REQUEST);
+            ctx.json(getErrorMessage(HttpStatus.BAD_REQUEST, e.getMessage()));
+        }
+    }
+
+    private void updateProduct(Context ctx) {
+        final JsonNode node = new JsonNode(ctx.body());
+        try {
+             boolean isUpdated = DatabaseManager.updateProduct(node.getObject().getString("id"),
+                     node.getObject().getString("name"),
+                     node.getObject().getString("description"),
+                     Double.parseDouble(node.getObject().getString("price")));
+             if (isUpdated) {
+                 ctx.status(HttpStatus.OK);
+             } else {
+                 ctx.status(HttpStatus.NOT_MODIFIED);
+             }
+        } catch (SQLException e) {
             ctx.status(HttpStatus.BAD_REQUEST);
             ctx.json(getErrorMessage(HttpStatus.BAD_REQUEST, e.getMessage()));
         }
