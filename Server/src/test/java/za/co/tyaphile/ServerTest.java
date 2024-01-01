@@ -20,6 +20,21 @@ public class ServerTest {
     private Set<String> orderIDs = new HashSet<>();
 
     @Test
+    void testPlaceOrderWithoutLogin() {
+        HttpResponse<JsonNode> response;
+        for(String id:ids) {
+            Map<String, String> order = new HashMap<>();
+            order.put("customerId", null);
+            order.put("products", id);
+            response = Unirest.post("http://localhost:5000/order")
+                    .body(new Gson().toJson(order))
+                    .asJson();
+
+            assertEquals(400, response.getStatus());
+        }
+    }
+
+    @Test
     void testPlaceOrder() {
         Map<String, String> user = new HashMap<>();
         user.put("name", "John");

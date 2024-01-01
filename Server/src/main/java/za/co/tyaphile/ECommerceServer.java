@@ -68,17 +68,23 @@ public class ECommerceServer {
 
     private void addOrder(Context context) {
         Map<?, ?> request = (Map<?, ?>) new Gson().fromJson(context.body(), Map.class);
+        System.out.println(request);
+        if (!request.containsKey("customerId") ||
+                (request.get("customerId").toString() == null || request.get("customerId").toString().isBlank())) {
+            context.status(HttpStatus.BAD_REQUEST);
+            context.json(getErrorMessage(HttpStatus.BAD_REQUEST, "You need to be signed in to place an order"));
+        } else {
+            Optional<Product> prod = products.getAllProducts().stream()
+                    .filter(x -> x.getProductId().equals(request.get("products").toString()))
+                    .findFirst();
+            if (prod.isPresent()) {
+                Product product = prod.get();
+                Order order = new Order(request.get("customerId").toString());
+                order.getOrderedProducts().add(request.get("products").toString());
+                order.setTotal((float) product.getPrice());
 
-        Optional<Product> prod = products.getAllProducts().stream()
-                .filter(x -> x.getProductId().equals(request.get("products").toString()))
-                .findFirst();
-        if (prod.isPresent()) {
-            Product product = prod.get();
-            Order order = new Order(request.get("customerId").toString());
-            order.getOrderedProducts().add(request.get("products").toString());
-            order.setTotal((float) product.getPrice());
-
-            ordersDB.addOrder(order);
+                ordersDB.addOrder(order);
+            }
         }
     }
 
@@ -130,8 +136,8 @@ public class ECommerceServer {
     private void deleteProduct(Context context) {
         try {
             ArrayList<?> items = (ArrayList<?>) new Gson().fromJson(context.body(), ArrayList.class);
-            context.status(HttpStatus.OK);
             items.forEach(x -> DatabaseManager.removeProduct(x.toString()));
+            context.status(HttpStatus.OK);
         } catch (Exception e) {
             context.status(HttpStatus.BAD_REQUEST);
             context.json(getErrorMessage(HttpStatus.BAD_REQUEST, e.getMessage()));
@@ -169,6 +175,7 @@ public class ECommerceServer {
         } catch (SQLException e) {
             ctx.status(HttpStatus.BAD_REQUEST);
             ctx.json(getErrorMessage(HttpStatus.BAD_REQUEST, e.getMessage()));
+            throw new RuntimeException(e);
         }
     }
 

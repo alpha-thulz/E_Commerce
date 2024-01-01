@@ -109,7 +109,7 @@ public class DatabaseManager {
     }
 
     public static boolean updateProduct(String id, String name, String description, double price) throws SQLException {
-        String sql = "UPDATE FROM " + PRODUCT + " SET product_name=?, product_description=?, product_price=? WHERE product_id=?;";
+        String sql = "UPDATE " + PRODUCT + " SET product_name=?, product_description=?, product_price=? WHERE product_id=?;";
         ps = Connect.getConnection(DB_NAME).prepareStatement(sql);
         ps.setString(1, name);
         ps.setString(2, description);

@@ -1,20 +1,51 @@
 const domainName = "http://localhost:5000";
-
+let userID = '';
 
 async function deleteProduct() {
     const urlParams = new URLSearchParams(window.location.search);
 
+    await fetch(domainName + "/remove-products", {
+        method: 'POST',
+        headers: {
+            'Accept': "application/json",
+        },
+        body: JSON.stringify([urlParams.get("id")])
+    });
+
+    window.location.replace("./index.html")
 }
-function editProduct(val) {
+
+async function deleteProducts() {
+    const ch_list = Array();
+    let checkboxes = document.querySelectorAll('input[type=checkbox]:checked');
+
+    for (let i = 0; i < checkboxes.length; i++) {
+        ch_list.push(checkboxes[i].value);
+    }
+
+    await fetch(domainName + "/remove-products", {
+        method: 'POST',
+        headers: {
+            'Accept': "application/json",
+        },
+        body: JSON.stringify(ch_list)
+    });
+
+    window.location.replace("./index.html")
+}
+function editFormView() {
     const urlParams = new URLSearchParams(window.location.search);
 
-
-
-    window.location.reload();
-}
-
-async function requestUpdate(val) {
-    console.log(">>>" + val)
+    document.getElementById("item_update").innerHTML = '<form action="product_update.html" id="update_item">' +
+            '<label for="update_name"></label>' +
+            '<input id="update_name" type="text" name="update_name" placeholder="Enter product name" required><br/>' +
+            '<label for="update_desc"></label>' +
+            '<input id="update_desc" type="text" name="update_desc" placeholder="Enter product description" required><br/>' +
+            '<label for="update_price"></label>' +
+            '<input id="update_price" type="text" name="update_price" placeholder="Enter product price omitting currency sign" required><br/>' +
+            '<input type="hidden" name="id" value="' + urlParams.get("id") + '">' +
+            '<input type="submit" value="Update product">' +
+        '</form>';
 }
 
 async function viewProduct() {
@@ -34,6 +65,24 @@ async function viewProduct() {
         });
 }
 
+async function updateProduct() {
+    const urlParams = new URLSearchParams(window.location.search);
+    let item_name = urlParams.get("update_name");
+    let item_desc = urlParams.get("update_desc");
+    let item_price = urlParams.get("update_price");
+    let item_id = urlParams.get("id");
+
+    await fetch(domainName + "/product/" + item_id, {
+        method: "PUT",
+        headers: {
+            'Accept': "application/json",
+        },
+        body: JSON.stringify({id: item_id, name: item_name, description: item_desc, price: +item_price})
+    });
+
+    window.location.replace("./product.html?id=" + item_id);
+}
+
 async function openStore() {
     await fetch(domainName + "/products", {
         method: 'POST',
@@ -42,7 +91,13 @@ async function openStore() {
         }
     })
         .then(response => response.json())
-        .then(data => displayResults(data));
+        .then(data => {
+            if (data.length <= 0) {
+                document.getElementById("results").innerText = "There are currently no items/products available for purchase";
+            } else {
+                displayResults(data);
+            }
+        });
 }
 
 function displayResults(data) {
@@ -57,13 +112,16 @@ function displayResults(data) {
     headingDesc.append("Description");
     const headingPrice = document.createElement('th');
     headingPrice.append("Price");
-    const headingSelect = document.createElement('th');
-    headingSelect.append("Delete");
+    const headingDelete = document.createElement('th');
+    headingDelete.append("Delete");
+    const headingWish = document.createElement('th');
+    headingWish.append("Add to cart");
 
     headings.append(headingItem);
     headings.append(headingDesc);
     headings.append(headingPrice);
-    headings.append(headingSelect);
+    headings.append(headingDelete);
+    headings.append(headingWish);
     table.append(headings);
 
     data.forEach(item => {
@@ -75,26 +133,70 @@ function displayResults(data) {
         const productDesc = document.createElement('td');
         const productPrice = document.createElement('td');
         const productDelete = document.createElement('td');
-        const checkbox = document.createElement("input");
-        checkbox.type="checkbox";
-        checkbox.id=`${product.id}`;
-        checkbox.name=`${product.id}`;
+        const productWish = document.createElement('td');
+
+        const deleteCheckbox = document.createElement("input");
+        deleteCheckbox.type="checkbox";
+        deleteCheckbox.value=`${product.id}`;
+        const wishButton = document.createElement("input");
+        wishButton.type="submit";
+        wishButton.id=`${product.id}`;
+        wishButton.value = 'Add to cart';
+
+        wishButton.onclick = addToCart;
 
         productID.setAttribute('href', `./product.html?id=${product.id}`);
         productID.innerText = `${product.name}`;
         productItem.appendChild(productID);
         productDesc.append(`${product.description}`);
         productPrice.append(`R${product.price}`);
-        productDelete.append(checkbox);
+        productDelete.append(deleteCheckbox);
+        productWish.append(wishButton);
 
         productRow.append(productItem);
         productRow.append(productDesc);
         productRow.append(productPrice);
         productRow.append(productDelete);
+        productRow.append(productWish);
         table.append(productRow);
     });
 
     resultsContainer.append(table)
 }
 
-// window.onload = ()=> openStore()
+function addProduct() {
+    let productForm = document.getElementById("product_add_form");
+
+    productForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        let productName = document.getElementById("product_name");
+        let productDescription = document.getElementById("product_desc");
+        let productPrice = document.getElementById("product_price");
+
+        await fetch(domainName + "/product", {
+            method: 'POST',
+            headers: {
+                'Accept': "application/json",
+            },
+            body: JSON.stringify({name: productName.value, description: productDescription.value, price: productPrice.value})
+        }).then(response => response.json())
+            .then(data => {
+                console.log(data);
+                if (data.code === "BAD_REQUEST") {
+                    alert(data.message + " invalid data entry");
+                } else {
+                    window.location.replace("./index.html");
+                }
+            });
+    });
+}
+
+async function addToCart(e) {
+    if (userID.trim() === '') {
+        alert("You need to be logged in to perform this action");
+    } else {
+        alert("ID " + userID + " logged in successfully");
+        let id = e.target.id;
+    }
+}
