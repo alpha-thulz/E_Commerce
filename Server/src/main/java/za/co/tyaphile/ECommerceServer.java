@@ -47,8 +47,8 @@ public class ECommerceServer {
     }
 
     public ECommerceServer() {
-        new DatabaseManager();
-//        createMockProducts();  // Comment out to disable creating mock items
+        new DatabaseManager(":memory:");
+        createMockProducts();  // Comment out to disable creating mock items
         init();
 
         server.post("/product", this::addProduct);
@@ -96,11 +96,25 @@ public class ECommerceServer {
     private void addUser(Context context) {
         Map<?, ?> request = (Map<?, ?>) new Gson().fromJson(context.body(), Map.class);
 
-        DatabaseManager.addUser(request.get("name").toString(), request.get("email").toString());
         User user = DatabaseManager.getUser(request.get("name").toString(), request.get("email").toString());
+        if (user == null) {
+            boolean isAdded = DatabaseManager.addUser(request.get("name").toString(), request.get("email").toString());
 
-        assert user != null;
-        context.json(getUserJson(user));
+            if (isAdded) {
+                user = DatabaseManager.getUser(request.get("name").toString(), request.get("email").toString());
+
+                assert user != null;
+                context.json(getUserJson(user));
+                System.out.println("User created, " + getUserJson(user));
+            } else {
+                context.status(HttpStatus.BAD_REQUEST);
+                context.json(getErrorMessage(HttpStatus.BAD_REQUEST, "Failed to add user, email address already in use"));
+                System.out.println("Email exists");
+            }
+        } else {
+            context.json(getUserJson(user));
+            System.out.println("User signed in, " + getUserJson(user));
+        }
     }
 
     private void getProductList(Context context) {
@@ -172,6 +186,7 @@ public class ECommerceServer {
              } else {
                  ctx.status(HttpStatus.NOT_MODIFIED);
              }
+             getProduct(ctx);
         } catch (SQLException e) {
             ctx.status(HttpStatus.BAD_REQUEST);
             ctx.json(getErrorMessage(HttpStatus.BAD_REQUEST, e.getMessage()));

@@ -26,7 +26,7 @@ public class DatabaseManager {
         setupDatabase();
     }
 
-    public static void addUser(String name, String email) {
+    public static boolean addUser(String name, String email) {
         User user = getUser(name, email);
         if (user == null) {
             user = new User(name, email);
@@ -37,11 +37,10 @@ public class DatabaseManager {
                 ps.setString(2, user.getName());
                 ps.setString(3, user.getEmail());
 
-                ps.executeUpdate();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
+                return ps.executeUpdate() > 0;
+            } catch (SQLException ignored) {}
         }
+        return false;
     }
 
     public static User getUser(String name, String email) {
@@ -74,6 +73,7 @@ public class DatabaseManager {
             ps = Connect.getConnection(DB_NAME).prepareStatement(sql);
             ps.setString(1, id);
             ps.executeUpdate();
+            System.out.println("User deleted");
         } catch (SQLException e) {
             e.printStackTrace();
         }

@@ -1,5 +1,5 @@
 const domainName = "http://localhost:5000";
-let userID = '';
+let userID = getSession();
 
 async function deleteProduct() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -33,6 +33,7 @@ async function deleteProducts() {
 
     window.location.replace("./index.html")
 }
+
 function editFormView() {
     const urlParams = new URLSearchParams(window.location.search);
 
@@ -78,9 +79,10 @@ async function updateProduct() {
             'Accept': "application/json",
         },
         body: JSON.stringify({id: item_id, name: item_name, description: item_desc, price: +item_price})
-    });
+    }).then(response => response.json())
+        .then(data => console.log(data));
 
-    window.location.replace("./product.html?id=" + item_id);
+    // window.location.replace("./product.html?id=" + item_id);
 }
 
 async function openStore() {
@@ -176,9 +178,7 @@ function addProduct() {
 
         await fetch(domainName + "/product", {
             method: 'POST',
-            headers: {
-                'Accept': "application/json",
-            },
+            headers: { 'Accept': "application/json", },
             body: JSON.stringify({name: productName.value, description: productDescription.value, price: productPrice.value})
         }).then(response => response.json())
             .then(data => {
@@ -199,4 +199,52 @@ async function addToCart(e) {
         alert("ID " + userID + " logged in successfully");
         let id = e.target.id;
     }
+}
+
+async function loginPage() {
+    const urlParams = new URLSearchParams(window.location.search);
+
+    console.log(userID);
+
+    if (userID != null) {
+        let manage = document.getElementById("login_form");
+
+        manage.innerHTML = '<div style="color: blue; cursor: pointer" onclick="deleteAccount()">Delete account</div><br/>' +
+            '<div style="color: blue; cursor: pointer" onclick="signOut()">Log out</div>'
+    } else if (urlParams.size === 2) {
+        await fetch(domainName + "/customer", {
+            method: 'POST',
+            headers: { 'Accept': "application/json", },
+            body: JSON.stringify({name: urlParams.get("name"), email: urlParams.get("email")})
+        }).then(response => response.json())
+            .then(data => {
+                if (data.code === "BAD_REQUEST") {
+                    alert("The email address you tried to use is being used by another user");
+                    window.location.replace("./login.html");
+                } else {
+                    setSession(data.id);
+                    window.location.reload();
+                }
+            });
+    }
+}
+
+async function deleteAccount() {
+    await fetch(domainName + "/customer/" + userID);
+    signOut();
+}
+
+function signOut() {
+    userID = null;
+    localStorage.removeItem("userId");
+    window.location.replace("./index.html");
+}
+
+function setSession(id) {
+    userID = id;
+    localStorage.setItem("userId", id);
+}
+
+function getSession() {
+    return localStorage.getItem("userId");
 }
