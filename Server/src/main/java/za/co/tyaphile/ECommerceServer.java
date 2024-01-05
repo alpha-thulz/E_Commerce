@@ -47,8 +47,9 @@ public class ECommerceServer {
     }
 
     public ECommerceServer() {
-        new DatabaseManager(":memory:");
-        createMockProducts();  // Comment out to disable creating mock items
+//        new DatabaseManager(":memory:");
+        new DatabaseManager("commerce.db");
+//        createMockProducts();  // Comment out to disable creating mock items
         init();
 
         server.post("/product", this::addProduct);
@@ -59,6 +60,8 @@ public class ECommerceServer {
         server.put("/product/{id}", this::updateProduct);
 
         server.post("/order", this::addOrder);
+//        server.post("/orders", this::addOrder);
+//        server.put("/order/{id}", this::addOrder);
 
         server.post("/customer", this::addUser);
         server.delete("/customer/{id}", this::deleteUser);
@@ -68,22 +71,29 @@ public class ECommerceServer {
 
     private void addOrder(Context context) {
         Map<?, ?> request = (Map<?, ?>) new Gson().fromJson(context.body(), Map.class);
-        System.out.println(request);
         if (!request.containsKey("customerId") ||
                 (request.get("customerId").toString() == null || request.get("customerId").toString().isBlank())) {
             context.status(HttpStatus.BAD_REQUEST);
             context.json(getErrorMessage(HttpStatus.BAD_REQUEST, "You need to be signed in to place an order"));
         } else {
-            Optional<Product> prod = products.getAllProducts().stream()
-                    .filter(x -> x.getProductId().equals(request.get("products").toString()))
-                    .findFirst();
-            if (prod.isPresent()) {
-                Product product = prod.get();
-                Order order = new Order(request.get("customerId").toString());
-                order.getOrderedProducts().add(request.get("products").toString());
-                order.setTotal((float) product.getPrice());
+            String customerID = request.get("customerId").toString();
+            String productsString = request.get("products").toString();
 
-                ordersDB.addOrder(order);
+            String[] products;
+            if (productsString.startsWith("[") && productsString.endsWith("]")) {
+                List<String> productList = Arrays.stream(productsString.substring(1, productsString.length() - 1)
+                        .replaceAll("\"", "").split(",")).toList();
+                products = productList.toArray(new String[0]);
+            } else {
+                products = new String[] {productsString};
+            }
+
+            boolean isOrdered = DatabaseManager.addOrder(customerID, products);
+            if (isOrdered) {
+                System.out.println("Success");
+                context.json(getOrderJson(DatabaseManager.getOrder(customerID)));
+            } else {
+                context.json(getErrorMessage(HttpStatus.BAD_REQUEST, "Failed to placed an order"));
             }
         }
     }
@@ -105,15 +115,12 @@ public class ECommerceServer {
 
                 assert user != null;
                 context.json(getUserJson(user));
-                System.out.println("User created, " + getUserJson(user));
             } else {
                 context.status(HttpStatus.BAD_REQUEST);
                 context.json(getErrorMessage(HttpStatus.BAD_REQUEST, "Failed to add user, email address already in use"));
-                System.out.println("Email exists");
             }
         } else {
             context.json(getUserJson(user));
-            System.out.println("User signed in, " + getUserJson(user));
         }
     }
 

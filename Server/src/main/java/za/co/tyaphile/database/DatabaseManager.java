@@ -2,14 +2,19 @@ package za.co.tyaphile.database;
 
 import org.sqlite.core.DB;
 import za.co.tyaphile.database.connect.Connect;
+import za.co.tyaphile.order.Order;
 import za.co.tyaphile.product.Product;
 import za.co.tyaphile.user.User;
 
+import java.sql.Blob;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class DatabaseManager {
     private static String DB_NAME = "";
@@ -24,6 +29,84 @@ public class DatabaseManager {
     public DatabaseManager(String db) {
         DB_NAME = db;
         setupDatabase();
+    }
+
+    public static void placeOrder() {
+
+    }
+
+    public static boolean makePayment(String customerId) {
+        try {
+            String sql = "UPDATE " + ORDER + " SET is_paid=? WHERE order_id=?";
+            PreparedStatement ps = Connect.getConnection(DB_NAME).prepareStatement(sql);
+            ps.setBoolean(1, true);
+            ps.setString(2, getOrder(customerId).getOrderId());
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static boolean addOrder(String customerId, String[] products) {
+        Order order = getOrder(customerId);
+        String sql;
+        PreparedStatement ps;
+
+        try {
+            if (order.getTotal() <= 0) {
+                sql = "INSERT INTO " + ORDER + " (order_id, customer_id, product_list, total_amount) VALUES (?, ?, ?, ?);";
+                ps = Connect.getConnection(DB_NAME).prepareStatement(sql);
+                ps.setString(1, order.getOrderId());
+                ps.setString(2, customerId);
+                ps.setObject(3, Arrays.stream(products).collect(Collectors.toList()));
+                ps.setDouble(4, Arrays.stream(products).map(x -> getProduct(x).getPrice())
+                        .reduce(Double::sum).orElse(0d));
+            } else {
+                sql = "UPDATE " + ORDER + " SET product_list=?, total_amount=? WHERE order_id=?";
+                ps = Connect.getConnection(DB_NAME).prepareStatement(sql);
+                order.getOrderedProducts().addAll(Arrays.stream(products).toList());
+                ps.setObject(1, order.getOrderedProducts());
+                ps.setDouble(2, (order.getTotal() + Arrays.stream(products).map(x -> getProduct(x).getPrice())
+                        .reduce(Double::sum).orElse(0d)));
+                ps.setString(3, order.getOrderId());
+            }
+
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static List<Order> getAllOrders(String customerId) {
+        String sql = "SELECT * FROM " + ORDER + " WHERE customer_id=?;";
+        List<Order> orders = new ArrayList<>();
+
+        try {
+            ps = Connect.getConnection(DB_NAME).prepareStatement(sql);
+            ps.setString(1, customerId);
+            rs = ps.executeQuery();
+            while (rs.next()) {
+                String order_id = rs.getString("order_id");
+                boolean is_paid = rs.getBoolean("is_paid");
+                String prodIds = rs.getObject("product_list").toString();
+                List<String> wishProducts = Arrays.stream(prodIds.substring(1, prodIds.length() - 1).split(", ")).toList();
+                float priceTotal = rs.getFloat("total_amount");
+
+                Order order = new Order(customerId);
+                order.setOrderId(order_id);
+                order.setPaid(is_paid);
+                order.getOrderedProducts().addAll(wishProducts);
+                order.setTotal(priceTotal);
+                orders.add(order);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        return orders;
+    }
+
+    public static Order getOrder(String customerId) {
+        return getAllOrders(customerId).stream().filter(x -> !x.isPaid()).findFirst().orElse(new Order(customerId));
     }
 
     public static boolean addUser(String name, String email) {
@@ -73,7 +156,6 @@ public class DatabaseManager {
             ps = Connect.getConnection(DB_NAME).prepareStatement(sql);
             ps.setString(1, id);
             ps.executeUpdate();
-            System.out.println("User deleted");
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -182,6 +264,13 @@ public class DatabaseManager {
                         "product_name VARCHAR(255) NOT NULL, " +
                         "product_description VARCHAR(255) NOT NULL, " +
                         "product_price DECIMAL NOT NULL" +
+                        ");",
+                "CREATE TABLE IF NOT EXISTS " + ORDER + " (" +
+                        "order_id VARCHAR(255) NOT NULL PRIMARY KEY, " +
+                        "is_paid Boolean NOT NULL DEFAULT 0, " +
+                        "customer_id VARCHAR(255) NOT NULL, " +
+                        "product_list BLOB NOT NULL, " +
+                        "total_amount DECIMAL NOT NULL" +
                         ");"
         };
 

@@ -17,7 +17,6 @@ public class ServerTest {
     private static ECommerceServer server;
     private static final Map<String, Object[]> products = new HashMap<>();
     private List<String> ids;
-    private Set<String> orderIDs = new HashSet<>();
 
     @Test
     void testPlaceOrderWithoutLogin() {
@@ -35,7 +34,7 @@ public class ServerTest {
     }
 
     @Test
-    void testPlaceOrder() {
+    void testPlaceOneOrderAtATime() {
         Map<String, String> user = new HashMap<>();
         user.put("name", "John");
         user.put("email", "john@example.com");
@@ -58,6 +57,32 @@ public class ServerTest {
 
             assertEquals(200, response.getStatus());
         }
+        assertEquals(8979.99, response.getBody().getObject().get("total"));
+    }
+
+    @Test
+    void testPlaceAllOrderAtOnce() {
+        Map<String, String> user = new HashMap<>();
+        user.put("name", "John");
+        user.put("email", "john@example.com");
+
+        HttpResponse<JsonNode> response = Unirest.post("http://localhost:5000/customer")
+                .body(new Gson().toJson(user))
+                .asJson();
+
+        assertEquals(200, response.getStatus());
+        String customerID = response.getBody().getObject().toMap().get("id").toString();
+        assertNotNull(customerID);
+
+        Map<String, String> order = new HashMap<>();
+        order.put("customerId", customerID);
+        order.put("products", new Gson().toJson(ids));
+        response = Unirest.post("http://localhost:5000/order")
+                .body(new Gson().toJson(order))
+                .asJson();
+
+        assertEquals(200, response.getStatus());
+        assertEquals(8979.99, response.getBody().getObject().get("total"));
     }
 
     @Test

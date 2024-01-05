@@ -193,18 +193,21 @@ function addProduct() {
 }
 
 async function addToCart(e) {
-    if (userID.trim() === '') {
+    if (userID == null) {
         alert("You need to be logged in to perform this action");
     } else {
-        alert("ID " + userID + " logged in successfully");
-        let id = e.target.id;
+        await fetch(domainName + "/order", {
+            method: 'POST',
+            headers: { 'Accept': "application/json", },
+            body: JSON.stringify({customerId: userID, products: e.target.id})
+        })
+            .then(response => response.json())
+            .then(data => console.log(data));
     }
 }
 
 async function loginPage() {
     const urlParams = new URLSearchParams(window.location.search);
-
-    console.log(userID);
 
     if (userID != null) {
         let manage = document.getElementById("login_form");

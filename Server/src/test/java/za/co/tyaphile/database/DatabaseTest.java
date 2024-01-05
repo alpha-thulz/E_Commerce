@@ -1,42 +1,80 @@
 package za.co.tyaphile.database;
 
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import za.co.tyaphile.database.connect.Connect;
+import za.co.tyaphile.order.Order;
+import za.co.tyaphile.product.Product;
+import za.co.tyaphile.user.User;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class DatabaseTest {
-
-    private final String user = "CREATE TABLE IF NOT EXISTS users (" +
-            "user_id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
-            "user_name BIGINT UNIQUE NOT NULL, " +
-            "user_email VARCHAR(255) NOT NULL" +
-            ");";
-    private final String addJohn = "INSERT INTO users (user_name, user_email) VALUES ('John', 'john@example.com');";
-    private final String fetchJohn = "SELECT * FROM users;";
+    private static final Map<String, Object[]> products = new HashMap<>();
+    private static final List<String> prodId = new ArrayList<>();
     @Test
-    void testDatabaseConnection() throws SQLException {
-        Connection connection = Connect.getConnection(":memory:");
-        assertFalse(connection.isClosed());
+    void testDatabaseConnection() {
+        assertTrue(DatabaseManager.addUser("John", "john@example.com"));
+        User user = DatabaseManager.getUser("John", "john@example.com");
+        assertNotNull(user.getId());
+        assertInstanceOf(String.class, user.getId());
+        assertEquals("John", user.getName());
+        assertEquals("john@example.com", user.getEmail());
+    }
 
-        PreparedStatement statement = connection.prepareStatement(user);
-        assertEquals(0, statement.executeUpdate());
+    /**
+     * Place one order
+     * Update unpaid order by adding 4 extra items to bucket
+     * Should contain 5 items and 1 active order
+     * Pay the active order bucket
+     * Make another order with 4 items
+     * Should have 2 orders in total, 1 paid and 1 unpaid
+     */
+    @Test
+    void testAddNewOrder() {
+        String custId = "1";
+        Order order = DatabaseManager.getOrder(custId);
+        assertEquals(0, order.getOrderedProducts().size());
+        assertEquals(5, prodId.size());
+        assertTrue(DatabaseManager.addOrder(custId, new String[]{prodId.get(0)}));
+        order = DatabaseManager.getOrder(custId);
+        assertEquals(1, order.getOrderedProducts().size());
+        assertEquals(1, DatabaseManager.getAllOrders(custId).size());
+        assertTrue(DatabaseManager.addOrder(custId, new String[]{prodId.get(1), prodId.get(2), prodId.get(3), prodId.get(4)}));
+        order = DatabaseManager.getOrder(custId);
+        assertEquals(5, order.getOrderedProducts().size());
+        assertEquals(1, DatabaseManager.getAllOrders(custId).size());
+        assertTrue(DatabaseManager.makePayment(custId));
+        assertTrue(DatabaseManager.addOrder(custId, new String[]{prodId.get(1), prodId.get(2), prodId.get(3), prodId.get(4)}));
+        order = DatabaseManager.getOrder(custId);
+        assertEquals(4, order.getOrderedProducts().size());
+        assertEquals(2, DatabaseManager.getAllOrders(custId).size());
+    }
 
-        statement = connection.prepareStatement(addJohn);
-        assertEquals(1, statement.executeUpdate());
+    @BeforeAll
+    static void setupDBConnect() {
+        new DatabaseManager(":memory:");
 
-        statement = connection.prepareStatement(fetchJohn);
-        ResultSet rs = statement.executeQuery();
-        while(rs.next()) {
-            assertEquals(0, rs.getInt(1));
-            assertEquals("John", rs.getString(2));
-            assertEquals("john@example.com", rs.getString(3));
+        products.put("USB Flash drive", new Object[] {"64 GB storage", 39.99});
+        products.put("Headphones", new Object[]{"Wireless headphones", 120.00});
+        products.put("Laptop", new Object[]{"256 GB storage laptop", 7000});
+        products.put("Routor", new Object[]{"32 connected devices", 1500});
+        products.put("Bird cage", new Object[]{"Keep your birds safe at night", 320});
+
+        for(Map.Entry<String, Object[]> prodInfo : products.entrySet()) {
+            DatabaseManager.addProduct(prodInfo.getKey(), prodInfo.getValue()[0].toString(), Double.parseDouble(prodInfo.getValue()[1].toString()));
         }
+
+        prodId.addAll(DatabaseManager.getAllProducts().stream().map(Product::getProductId).toList());
     }
 }
