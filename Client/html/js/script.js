@@ -263,7 +263,7 @@ async function getActiveOrder() {
             payment.innerHTML = `<form action="./checkout.html" method="post" id="make_payment">
                                     <input type="hidden" value="${data.total}" name="amount">
                                     <input type="hidden" value="${data.id}" name="order_id">
-                                    <input type="submit" value="Pay ${data.total} now">
+                                    <input type="submit" value="Pay R ${data.total} now">
                                  </form>`;
 
             document.getElementById("make_payment").addEventListener("submit", async function(evt){
