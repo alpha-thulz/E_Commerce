@@ -1,19 +1,16 @@
 package za.co.tyaphile.database;
 
-import org.sqlite.core.DB;
 import za.co.tyaphile.database.connect.Connect;
 import za.co.tyaphile.order.Order;
 import za.co.tyaphile.product.Product;
 import za.co.tyaphile.user.User;
 
-import java.sql.Blob;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class DatabaseManager {
@@ -40,7 +37,7 @@ public class DatabaseManager {
             String sql = "UPDATE " + ORDER + " SET is_paid=? WHERE order_id=?";
             PreparedStatement ps = Connect.getConnection(DB_NAME).prepareStatement(sql);
             ps.setBoolean(1, true);
-            ps.setString(2, getOrder(customerId).getOrderId());
+            ps.setString(2, getCustomerOrder(customerId).getOrderId());
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
             throw new RuntimeException(e);
@@ -48,7 +45,7 @@ public class DatabaseManager {
     }
 
     public static boolean addOrder(String customerId, String[] products) {
-        Order order = getOrder(customerId);
+        Order order = getCustomerOrder(customerId);
         String sql;
         PreparedStatement ps;
 
@@ -77,7 +74,34 @@ public class DatabaseManager {
         }
     }
 
-    public static List<Order> getAllOrders(String customerId) {
+    public static Order getOrder(String orderID) {
+        String sql = "SELECT * FROM " + ORDER + " WHERE order_id=?;";
+        Order order = null;
+
+        try {
+            ps = Connect.getConnection(DB_NAME).prepareStatement(sql);
+            ps.setString(1, orderID);
+            rs = ps.executeQuery();
+            while (rs.next()) {
+                String customer_id = rs.getString("customer_id");
+                boolean is_paid = rs.getBoolean("is_paid");
+                String prodIds = rs.getObject("product_list").toString();
+                List<String> wishProducts = Arrays.stream(prodIds.substring(1, prodIds.length() - 1).split(", ")).toList();
+                float priceTotal = rs.getFloat("total_amount");
+
+                order = new Order(customer_id);
+                order.setOrderId(orderID);
+                order.setPaid(is_paid);
+                order.getOrderedProducts().addAll(wishProducts);
+                order.setTotal(priceTotal);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        return order;
+    }
+
+    public static List<Order> getAllCustomerOrders(String customerId) {
         String sql = "SELECT * FROM " + ORDER + " WHERE customer_id=?;";
         List<Order> orders = new ArrayList<>();
 
@@ -105,8 +129,12 @@ public class DatabaseManager {
         return orders;
     }
 
-    public static Order getOrder(String customerId) {
-        return getAllOrders(customerId).stream().filter(x -> !x.isPaid()).findFirst().orElse(new Order(customerId));
+    public static Order getCustomerOrder(String customerId) {
+        return getAllCustomerOrders(customerId).stream().filter(x -> !x.isPaid()).findFirst().orElse(new Order(customerId));
+    }
+
+    public static Order getCustomerOrder(String customerId, String orderId) {
+        return getAllCustomerOrders(customerId).stream().filter(x -> x.getOrderId().equals(orderId)).findAny().orElse(new Order(customerId));
     }
 
     public static boolean addUser(String name, String email) {

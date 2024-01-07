@@ -166,6 +166,50 @@ function displayResults(data) {
     resultsContainer.append(table)
 }
 
+async function productListTable(data) {
+    let table = document.createElement("table");
+
+    const headings = document.createElement('tr');
+    let prodName = document.createElement("th");
+    prodName.append("Product Name");
+    let prodPrice = document.createElement("th");
+    prodPrice.append("Price");
+
+    headings.append(prodName);
+    headings.append(prodPrice);
+    table.append(headings);
+
+    for (let i = 0; i < Array.from(data.products).length; i++) {
+        await fetch(domainName + "/product/" + Array.from(data.products)[i], {
+            method: 'GET',
+            headers: {
+                'Accept': "application/json",
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                let row = document.createElement("tr");
+
+                let productName = document.createElement("td");
+                let productPrice = document.createElement("td");
+                productName.append(data.name);
+                productPrice.append(`R ${data.price}`);
+
+                row.append(productName);
+                row.append(productPrice);
+                table.append(row);
+            });
+    }
+
+    let total = document.createElement("tr");
+    let totalPrice = document.createElement("td");
+    totalPrice.append(`R ${data.total}`)
+    total.append(document.createElement("td"));
+    total.append(totalPrice);
+    table.append(total);
+    return table;
+}
+
 function addProduct() {
     let productForm = document.getElementById("product_add_form");
 
@@ -200,10 +244,64 @@ async function addToCart(e) {
             method: 'POST',
             headers: { 'Accept': "application/json", },
             body: JSON.stringify({customerId: userID, products: e.target.id})
-        })
-            .then(response => response.json())
-            .then(data => console.log(data));
+        });
     }
+}
+
+async function getActiveOrder() {
+    await fetch(domainName + "/orders", {
+        method: 'POST',
+        headers: { 'Accept': "application/json", },
+        body: JSON.stringify({customerId: userID})
+    })
+        .then(response => response.json())
+        .then(async data => {
+            let content = document.getElementById("basket");
+            content.append(await productListTable(data));
+
+            let payment = document.getElementById("payment");
+            payment.innerHTML = `<form action="./checkout.html" method="post" id="make_payment">
+                                    <input type="hidden" value="${data.total}" name="amount">
+                                    <input type="hidden" value="${data.id}" name="order_id">
+                                    <input type="submit" value="Pay ${data.total} now">
+                                 </form>`;
+
+            document.getElementById("make_payment").addEventListener("submit", async function(evt){
+                evt.preventDefault();
+
+                data.paid = true;
+                await fetch(domainName + "/order/" + data.id, {
+                    method: 'PUT',
+                    headers: {'Accept': "application/json",},
+                    body: JSON.stringify(data),
+                }).then(response => response.json())
+                    .then(data => {
+                        if (data.paid) {
+                            window.location.replace("./checkout.html?id=" + data.id);
+                        } else {
+                            content.innerHTML = "Failed to forward you to the checkout page";
+                            payment.innerHTML = "<a href='./checkout.html?id='" +  + data.id + ">Click here</a> to got to order confirmation."
+                        }
+                    });
+            });
+        });
+}
+
+async function confirmPayment() {
+    const urlParams = new URLSearchParams(window.location.search);
+    await fetch(domainName + "/order/" + urlParams.get("id"), {
+        method: 'GET',
+        headers: {'Accept': "application/json",},
+    }).then(response => response.json())
+        .then(async data => {
+            document.getElementById('amount').innerText = data.total;
+            let product_list = document.getElementById('product_list');
+            product_list.append(await productListTable(data));
+        });
+}
+
+async function getHistoryOrders() {
+
 }
 
 async function loginPage() {

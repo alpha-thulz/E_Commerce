@@ -1,17 +1,11 @@
 package za.co.tyaphile.database;
 
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import za.co.tyaphile.database.connect.Connect;
 import za.co.tyaphile.order.Order;
 import za.co.tyaphile.product.Product;
 import za.co.tyaphile.user.User;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -43,22 +37,22 @@ public class DatabaseTest {
     @Test
     void testAddNewOrder() {
         String custId = "1";
-        Order order = DatabaseManager.getOrder(custId);
+        Order order = DatabaseManager.getCustomerOrder(custId);
         assertEquals(0, order.getOrderedProducts().size());
         assertEquals(5, prodId.size());
         assertTrue(DatabaseManager.addOrder(custId, new String[]{prodId.get(0)}));
-        order = DatabaseManager.getOrder(custId);
+        order = DatabaseManager.getCustomerOrder(custId);
         assertEquals(1, order.getOrderedProducts().size());
-        assertEquals(1, DatabaseManager.getAllOrders(custId).size());
+        assertEquals(1, DatabaseManager.getAllCustomerOrders(custId).size());
         assertTrue(DatabaseManager.addOrder(custId, new String[]{prodId.get(1), prodId.get(2), prodId.get(3), prodId.get(4)}));
-        order = DatabaseManager.getOrder(custId);
+        order = DatabaseManager.getCustomerOrder(custId);
         assertEquals(5, order.getOrderedProducts().size());
-        assertEquals(1, DatabaseManager.getAllOrders(custId).size());
+        assertEquals(1, DatabaseManager.getAllCustomerOrders(custId).size());
         assertTrue(DatabaseManager.makePayment(custId));
         assertTrue(DatabaseManager.addOrder(custId, new String[]{prodId.get(1), prodId.get(2), prodId.get(3), prodId.get(4)}));
-        order = DatabaseManager.getOrder(custId);
+        order = DatabaseManager.getCustomerOrder(custId);
         assertEquals(4, order.getOrderedProducts().size());
-        assertEquals(2, DatabaseManager.getAllOrders(custId).size());
+        assertEquals(2, DatabaseManager.getAllCustomerOrders(custId).size());
     }
 
     @BeforeAll

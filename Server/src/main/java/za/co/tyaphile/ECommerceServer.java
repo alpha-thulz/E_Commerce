@@ -60,13 +60,47 @@ public class ECommerceServer {
         server.put("/product/{id}", this::updateProduct);
 
         server.post("/order", this::addOrder);
-//        server.post("/orders", this::addOrder);
-//        server.put("/order/{id}", this::addOrder);
+        server.put("/order/{id}", this::updateOrder);
+        server.post("/orders", this::getOrder);
+        server.get("/order/{id}", this::getOrder);
 
         server.post("/customer", this::addUser);
         server.delete("/customer/{id}", this::deleteUser);
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> server.stop()));
+    }
+
+    private void updateOrder(Context context) {
+        Map<?, ?> request = (Map<?, ?>) new Gson().fromJson(context.body(), Map.class);
+
+        if (!request.containsKey("customerId") ||
+                (request.get("customerId").toString() == null || request.get("customerId").toString().isBlank())) {
+            context.status(HttpStatus.BAD_REQUEST);
+            context.json(getErrorMessage(HttpStatus.BAD_REQUEST, "You need to be signed in to pay for the order"));
+        } else {
+            if (request.containsKey("paid") && ((Boolean) request.get("paid"))) {
+                String customerId = request.get("customerId").toString();
+                String orderId = request.get("id").toString();
+                DatabaseManager.makePayment(customerId);
+                context.json(getOrderJson(DatabaseManager.getCustomerOrder(customerId, orderId)));
+            }
+        }
+    }
+
+    private void getOrder(Context context) {
+        Map<?, ?> request = (Map<?, ?>) new Gson().fromJson(context.body(), Map.class);
+
+        if (request == null) {
+            context.json(getOrderJson(DatabaseManager.getOrder(context.pathParamMap().get("id"))));
+        } else {
+            if (!request.containsKey("customerId") ||
+                    (request.get("customerId").toString() == null || request.get("customerId").toString().isBlank())) {
+                context.status(HttpStatus.BAD_REQUEST);
+                context.json(getErrorMessage(HttpStatus.BAD_REQUEST, "You need to be signed in to place an order"));
+            } else {
+                context.json(getOrderJson(DatabaseManager.getCustomerOrder(request.get("customerId").toString())));
+            }
+        }
     }
 
     private void addOrder(Context context) {
@@ -90,8 +124,7 @@ public class ECommerceServer {
 
             boolean isOrdered = DatabaseManager.addOrder(customerID, products);
             if (isOrdered) {
-                System.out.println("Success");
-                context.json(getOrderJson(DatabaseManager.getOrder(customerID)));
+                context.json(getOrderJson(DatabaseManager.getCustomerOrder(customerID)));
             } else {
                 context.json(getErrorMessage(HttpStatus.BAD_REQUEST, "Failed to placed an order"));
             }
