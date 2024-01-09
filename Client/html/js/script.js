@@ -81,12 +81,10 @@ async function updateProduct() {
         body: JSON.stringify({id: item_id, name: item_name, description: item_desc, price: +item_price})
     }).then(response => response.json())
         .then(data => console.log(data));
-
-    // window.location.replace("./product.html?id=" + item_id);
 }
 
 async function openStore() {
-    await fetch(domainName + "/products", {
+    await fetch(`${domainName}/products`, {
         method: 'POST',
         headers: {
             'Accept': "application/json",
@@ -95,7 +93,9 @@ async function openStore() {
         .then(response => response.json())
         .then(data => {
             if (data.length <= 0) {
-                document.getElementById("results").innerText = "There are currently no items/products available for purchase";
+                let result = document.getElementById("results");
+                result.setAttribute("id", "noItemsText");
+                result.innerText = "There are currently no items/products available for purchase";
             } else {
                 displayResults(data);
             }

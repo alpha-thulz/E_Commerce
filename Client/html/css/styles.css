@@ -3,7 +3,6 @@ body {
 }
 
 table {
-    /*width: 65%;*/
     border-collapse: collapse;
     margin-top: 20px;
     text-align: center;
@@ -21,19 +20,21 @@ th {
 }
 
 input {
-    width: 350pt;
-    padding: 8px;
+    width: 100%;
+    padding: 10px;
     margin: 10px 0;
     box-sizing: border-box;
 }
 
 input[type="submit"] {
     cursor: pointer;
+    background-color: dodgerblue;
+    color: white;
+    border: none;
 }
 
 input[type="submit"]:hover {
-    background-color: dodgerblue;
-    color: white;
+    background-color: #0a5ad1;
 }
 
 input[type="checkbox"] {
@@ -50,4 +51,5 @@ input[type="checkbox"] {
     padding: 10px;
     display: inline-block;
     text-align: center;
+    align-items: center;
 }

@@ -6,7 +6,13 @@ import io.javalin.Javalin;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import io.javalin.plugin.bundled.CorsPluginConfig;
+import io.javalin.rendering.template.JavalinThymeleaf;
 import kong.unirest.JsonNode;
+import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
+import za.co.tyaphile.api.OrderAPI;
+import za.co.tyaphile.api.ProductAPI;
+import za.co.tyaphile.api.UserAPI;
 import za.co.tyaphile.database.DatabaseManager;
 import za.co.tyaphile.order.Order;
 import za.co.tyaphile.order.OrdersDB;
@@ -19,14 +25,16 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static io.javalin.apibuilder.ApiBuilder.get;
+
 public class ECommerceServer {
     private Javalin server;
     private final int DEFAULT_PORT = 5000;
-    private final ProductsDB products = new ProductsDB();
-    private final UserDB users = new UserDB();
-    private final OrdersDB ordersDB = new OrdersDB();
+    private static final String PAGES_DIR = "/html/";
 
     private void init() {
+        createMockProducts();  // Comment out to disable creating mock items
+        JavalinThymeleaf.init(templateEngine());
         server = Javalin.create(cfg -> {
             cfg.http.defaultContentType = "application/json";
             cfg.showJavalinBanner = false;
@@ -47,194 +55,36 @@ public class ECommerceServer {
     }
 
     public ECommerceServer() {
-//        new DatabaseManager(":memory:");
-        new DatabaseManager("commerce.db");
-//        createMockProducts();  // Comment out to disable creating mock items
+        new DatabaseManager(":memory:");
+//        new DatabaseManager("commerce.db");
         init();
 
-        server.post("/product", this::addProduct);
-        server.post("/remove-products", this::deleteProduct);
-        server.post("/products", this::getProductList);
+        server.routes(() -> {
+            get("/", context -> context.render("index.html"));
+        });
 
-        server.get("/product/{id}", this::getProduct);
-        server.put("/product/{id}", this::updateProduct);
+        ProductAPI product = new ProductAPI();
+        server.post("/product", product::addProduct);
+        server.post("/remove-products", product::deleteProduct);
+        server.post("/products", product::getProductList);
 
-        server.post("/order", this::addOrder);
-        server.put("/order/{id}", this::updateOrder);
-        server.post("/orders", this::getOrder);
-        server.get("/order/{id}", this::getOrder);
+        server.get("/product/{id}", product::getProduct);
+        server.put("/product/{id}", product::updateProduct);
 
-        server.post("/customer", this::addUser);
-        server.delete("/customer/{id}", this::deleteUser);
+        OrderAPI order = new OrderAPI();
+        server.post("/order", order::addOrder);
+        server.put("/order/{id}", order::updateOrder);
+        server.post("/orders", order::getOrder);
+        server.get("/order/{id}", order::getOrder);
+
+        UserAPI user = new UserAPI();
+        server.post("/customer", user::addUser);
+        server.delete("/customer/{id}", user::deleteUser);
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> server.stop()));
     }
 
-    private void updateOrder(Context context) {
-        Map<?, ?> request = (Map<?, ?>) new Gson().fromJson(context.body(), Map.class);
-
-        if (!request.containsKey("customerId") ||
-                (request.get("customerId").toString() == null || request.get("customerId").toString().isBlank())) {
-            context.status(HttpStatus.BAD_REQUEST);
-            context.json(getErrorMessage(HttpStatus.BAD_REQUEST, "You need to be signed in to pay for the order"));
-        } else {
-            if (request.containsKey("paid") && ((Boolean) request.get("paid"))) {
-                String customerId = request.get("customerId").toString();
-                String orderId = request.get("id").toString();
-                DatabaseManager.makePayment(customerId);
-                context.json(getOrderJson(DatabaseManager.getCustomerOrder(customerId, orderId)));
-            }
-        }
-    }
-
-    private void getOrder(Context context) {
-        Map<?, ?> request = (Map<?, ?>) new Gson().fromJson(context.body(), Map.class);
-
-        if (request == null) {
-            context.json(getOrderJson(DatabaseManager.getOrder(context.pathParamMap().get("id"))));
-        } else {
-            if (!request.containsKey("customerId") ||
-                    (request.get("customerId").toString() == null || request.get("customerId").toString().isBlank())) {
-                context.status(HttpStatus.BAD_REQUEST);
-                context.json(getErrorMessage(HttpStatus.BAD_REQUEST, "You need to be signed in to place an order"));
-            } else {
-                context.json(getOrderJson(DatabaseManager.getCustomerOrder(request.get("customerId").toString())));
-            }
-        }
-    }
-
-    private void addOrder(Context context) {
-        Map<?, ?> request = (Map<?, ?>) new Gson().fromJson(context.body(), Map.class);
-        if (!request.containsKey("customerId") ||
-                (request.get("customerId").toString() == null || request.get("customerId").toString().isBlank())) {
-            context.status(HttpStatus.BAD_REQUEST);
-            context.json(getErrorMessage(HttpStatus.BAD_REQUEST, "You need to be signed in to place an order"));
-        } else {
-            String customerID = request.get("customerId").toString();
-            String productsString = request.get("products").toString();
-
-            String[] products;
-            if (productsString.startsWith("[") && productsString.endsWith("]")) {
-                List<String> productList = Arrays.stream(productsString.substring(1, productsString.length() - 1)
-                        .replaceAll("\"", "").split(",")).toList();
-                products = productList.toArray(new String[0]);
-            } else {
-                products = new String[] {productsString};
-            }
-
-            boolean isOrdered = DatabaseManager.addOrder(customerID, products);
-            if (isOrdered) {
-                context.json(getOrderJson(DatabaseManager.getCustomerOrder(customerID)));
-            } else {
-                context.json(getErrorMessage(HttpStatus.BAD_REQUEST, "Failed to placed an order"));
-            }
-        }
-    }
-
-    private void deleteUser(Context context) {
-        String id = context.pathParam("id");
-        DatabaseManager.removeUser(id);
-    }
-
-    private void addUser(Context context) {
-        Map<?, ?> request = (Map<?, ?>) new Gson().fromJson(context.body(), Map.class);
-
-        User user = DatabaseManager.getUser(request.get("name").toString(), request.get("email").toString());
-        if (user == null) {
-            boolean isAdded = DatabaseManager.addUser(request.get("name").toString(), request.get("email").toString());
-
-            if (isAdded) {
-                user = DatabaseManager.getUser(request.get("name").toString(), request.get("email").toString());
-
-                assert user != null;
-                context.json(getUserJson(user));
-            } else {
-                context.status(HttpStatus.BAD_REQUEST);
-                context.json(getErrorMessage(HttpStatus.BAD_REQUEST, "Failed to add user, email address already in use"));
-            }
-        } else {
-            context.json(getUserJson(user));
-        }
-    }
-
-    private void getProductList(Context context) {
-        List<Product> allProducts;
-        List<String> response;
-
-//        Map<String, String> response = allProducts.stream()
-//                .collect(Collectors.toMap(Product::getProductId, this::getProductJson));
-
-        try {
-            ArrayList<?> items = (ArrayList<?>) new Gson().fromJson(context.body(), ArrayList.class);
-            allProducts = items.stream().map(x -> DatabaseManager.getProduct(String.valueOf(x))).toList();
-            response = allProducts.stream().map(this::getProductJson).collect(Collectors.toList());
-        } catch (Exception e) {
-            allProducts = DatabaseManager.getAllProducts();
-            response = allProducts.stream().map(this::getProductJson).collect(Collectors.toList());
-        }
-
-        context.json(new Gson().toJson(response));
-    }
-
-    private void getProduct(Context context) {
-        Product product = DatabaseManager.getProduct(context.pathParam("id"));
-        if (product != null) {
-            context.status(HttpStatus.OK);
-            context.json(getProductJson(product));
-        } else {
-            context.status(HttpStatus.NOT_FOUND);
-            context.json(getErrorMessage(HttpStatus.NOT_FOUND, "Product ID: " + context.pathParam("id") + " not found"));
-        }
-    }
-
-    private void deleteProduct(Context context) {
-        try {
-            ArrayList<?> items = (ArrayList<?>) new Gson().fromJson(context.body(), ArrayList.class);
-            items.forEach(x -> DatabaseManager.removeProduct(x.toString()));
-            context.status(HttpStatus.OK);
-        } catch (Exception e) {
-            context.status(HttpStatus.BAD_REQUEST);
-            context.json(getErrorMessage(HttpStatus.BAD_REQUEST, e.getMessage()));
-        }
-    }
-
-    private void addProduct(Context ctx) {
-        final JsonNode node = new JsonNode(ctx.body());
-        try {
-            Product product = DatabaseManager.addProduct(node.getObject().getString("name"),
-                    node.getObject().getString("description"),
-                    Double.parseDouble(node.getObject().getString("price")));
-            ctx.status(HttpStatus.OK);
-
-            assert product != null;
-            ctx.json(getProductJson(product));
-        } catch (Exception e) {
-            ctx.status(HttpStatus.BAD_REQUEST);
-            ctx.json(getErrorMessage(HttpStatus.BAD_REQUEST, e.getMessage()));
-        }
-    }
-
-    private void updateProduct(Context ctx) {
-        final JsonNode node = new JsonNode(ctx.body());
-        try {
-             boolean isUpdated = DatabaseManager.updateProduct(node.getObject().getString("id"),
-                     node.getObject().getString("name"),
-                     node.getObject().getString("description"),
-                     Double.parseDouble(node.getObject().getString("price")));
-             if (isUpdated) {
-                 ctx.status(HttpStatus.OK);
-             } else {
-                 ctx.status(HttpStatus.NOT_MODIFIED);
-             }
-             getProduct(ctx);
-        } catch (SQLException e) {
-            ctx.status(HttpStatus.BAD_REQUEST);
-            ctx.json(getErrorMessage(HttpStatus.BAD_REQUEST, e.getMessage()));
-            throw new RuntimeException(e);
-        }
-    }
-
-    private Map<String, Object> getErrorMessage(HttpStatus status, String message) {
+    public static Map<String, Object> getErrorMessage(HttpStatus status, String message) {
         Map<String, Object> result = new HashMap<>();
         result.put("code", status);
         result.put("title", "Error");
@@ -242,40 +92,17 @@ public class ECommerceServer {
         return result;
     }
 
-    private String getOrderJson(Order order) {
-        Gson json = new Gson();
-
-        Map<String, Object> orderInfo = new HashMap<>();
-        orderInfo.put("id", order.getOrderId());
-        orderInfo.put("paid", order.isPaid());
-        orderInfo.put("customerId", order.getCustomerId());
-        orderInfo.put("products", order.getOrderedProducts());
-        orderInfo.put("total", order.getTotal());
-
-        return json.toJson(orderInfo);
-    }
-
-    private String getUserJson(User user) {
-        JsonObject json = new JsonObject();
-        json.addProperty("id", user.getId());
-        json.addProperty("name", user.getName());
-        json.addProperty("email", user.getEmail());
-        return json.toString();
-    }
-
-    private String getProductJson(Product product) {
-        JsonObject json = new JsonObject();
-        json.addProperty("id", product.getProductId());
-        json.addProperty("name", product.getProductName());
-        json.addProperty("description", product.getProductDescription());
-        json.addProperty("price", product.getPrice());
-
-        return json.toString();
-    }
-
     public static void main(String[] args) {
         ECommerceServer server = new ECommerceServer();
         server.start();
+    }
+
+    private TemplateEngine templateEngine() {
+        TemplateEngine templateEngine = new TemplateEngine();
+        ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
+        resolver.setPrefix(PAGES_DIR);
+        templateEngine.setTemplateResolver(resolver);
+        return templateEngine;
     }
 
     private void createMockProducts() {
