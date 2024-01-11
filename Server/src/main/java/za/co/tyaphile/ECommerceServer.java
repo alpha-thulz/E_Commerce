@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import io.javalin.Javalin;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
+import io.javalin.http.staticfiles.Location;
 import io.javalin.plugin.bundled.CorsPluginConfig;
 import io.javalin.rendering.template.JavalinThymeleaf;
 import kong.unirest.JsonNode;
@@ -18,6 +19,7 @@ import za.co.tyaphile.order.Order;
 import za.co.tyaphile.order.OrdersDB;
 import za.co.tyaphile.product.Product;
 import za.co.tyaphile.product.ProductsDB;
+import za.co.tyaphile.routing.APIRouting;
 import za.co.tyaphile.user.User;
 import za.co.tyaphile.user.UserDB;
 
@@ -29,6 +31,7 @@ import static io.javalin.apibuilder.ApiBuilder.get;
 
 public class ECommerceServer {
     private Javalin server;
+    private DatabaseManager database;
     private final int DEFAULT_PORT = 5000;
     private static final String PAGES_DIR = "/html/";
 
@@ -39,6 +42,7 @@ public class ECommerceServer {
             cfg.http.defaultContentType = "application/json";
             cfg.showJavalinBanner = false;
             cfg.plugins.enableCors(cors -> cors.add(CorsPluginConfig::anyHost));
+            cfg.staticFiles.add(PAGES_DIR, Location.CLASSPATH);
         });
     }
 
@@ -51,35 +55,15 @@ public class ECommerceServer {
     }
 
     public void stop() {
+        database = null;
         server.stop();
     }
 
     public ECommerceServer() {
-        new DatabaseManager(":memory:");
+        database = new DatabaseManager(":memory:");
 //        new DatabaseManager("commerce.db");
         init();
-
-        server.routes(() -> {
-            get("/", context -> context.render("index.html"));
-        });
-
-        ProductAPI product = new ProductAPI();
-        server.post("/product", product::addProduct);
-        server.post("/remove-products", product::deleteProduct);
-        server.post("/products", product::getProductList);
-
-        server.get("/product/{id}", product::getProduct);
-        server.put("/product/{id}", product::updateProduct);
-
-        OrderAPI order = new OrderAPI();
-        server.post("/order", order::addOrder);
-        server.put("/order/{id}", order::updateOrder);
-        server.post("/orders", order::getOrder);
-        server.get("/order/{id}", order::getOrder);
-
-        UserAPI user = new UserAPI();
-        server.post("/customer", user::addUser);
-        server.delete("/customer/{id}", user::deleteUser);
+        new APIRouting(server);
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> server.stop()));
     }

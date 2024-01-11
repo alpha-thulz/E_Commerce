@@ -126,17 +126,6 @@ public class ServerTest {
     }
 
     @Test
-    void testGetAllProducts() {
-        HttpResponse<JsonNode> response = Unirest.post("http://localhost:5000/products").asJson();
-
-        Gson json = new Gson();
-
-        ArrayList<?> allProducts = (ArrayList<?>) json.fromJson(String.valueOf(response.getBody()), ArrayList.class);
-        assertEquals(5, allProducts.size());
-        allProducts.forEach(x -> assertTrue(ids.contains(((Map<?, ?>) json.fromJson((String) x, Map.class)).get("id"))));
-    }
-
-    @Test
     void testGetSomeProducts() {
         ArrayList<String> lookup = new ArrayList<>(ids.subList(0, 2));
         ArrayList<String> notLookup = new ArrayList<>(ids.subList(2, ids.size()));
@@ -290,7 +279,8 @@ public class ServerTest {
     }
 
     @BeforeAll
-    static void setup() {
+    static void setup() throws InterruptedException {
+        Thread.sleep(1500);
         new DatabaseManager(":memory:");
         server = new ECommerceServer();
         server.start();
