@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class WebTest {
     private ECommerceServer server;
     private WebDriver driver;
-    private static final File dir = new File("screenshots");
+    private static final File dir = new File("test_screenshots");
     private int counter = 1;
 
     @Test
@@ -87,6 +87,50 @@ public class WebTest {
         assertEquals("http://localhost:5000/index.html", driver.getCurrentUrl());
         removeAllItems();
     }
+    @Test
+    void testMakePurchase() throws IOException {
+        login();
+        WebElement table = driver.findElement(By.tagName("table"));
+        List<WebElement> products = table.findElements(By.tagName("tr")).stream().map(x -> {
+            List<WebElement> elements = x.findElements(By.tagName("td"));
+            if(elements.isEmpty()) return null;
+            return elements.get(4).findElement(By.tagName("input"));
+        }).filter(Objects::nonNull).toList();
+        products.get(2).click();
+        driver.findElement(By.id("basket")).click();
+        takeScreenShot();
+        List<List<WebElement>> rows = new ArrayList<>(driver.findElements(By.tagName("tr")).stream().map(x -> {
+            List<WebElement> elements = x.findElements(By.tagName("td"));
+            if (elements.isEmpty()) return null;
+            return elements;
+        }).filter(Objects::nonNull).toList());
+        rows.remove(rows.size() - 1);
+        assertEquals(1, rows.size());
+        assertEquals("OPPO Find N2 Flip 5G 256GB Dual Sim - Moonlit Purple",rows.get(0).get(0).getText());
+        assertEquals("R 23999",rows.get(0).get(1).getText());
+        driver.findElement(By.id("make_payment")).click();
+        takeScreenShot();
+        String result = driver.findElement(By.tagName("h3")).getText();
+        assertEquals("Thank you for your continued support, you have successfully purchased the following product/s for R 23999", result);
+        removeAllItems();
+    }
+
+    @Test
+    void testAddNewItem() throws IOException, InterruptedException {
+        testDeleteAllItems();
+
+        driver.findElement(By.id("add")).click();
+        driver.findElement(By.id("product_name")).sendKeys("Test Product");
+        driver.findElement(By.id("product_desc")).sendKeys("Test Product Description");
+        driver.findElement(By.id("product_price")).sendKeys("20000");
+        takeScreenShot();
+        driver.findElement(By.xpath("//*[@id=\"product_add_form\"]/table/tbody/tr[4]/td/input")).click();
+
+        Thread.sleep(250);
+        assertEquals("http://localhost:5000/index.html", driver.getCurrentUrl());
+        takeScreenShot();
+        removeAllItems();
+    }
 
     @BeforeAll
     static void setupScreenShotFolder() {
@@ -98,6 +142,15 @@ public class WebTest {
             dir.delete();
         }
         dir.mkdir();
+    }
+
+    private void login() {
+        driver.findElement(By.id("login")).click();
+        assertEquals("http://localhost:5000/login.html", driver.getCurrentUrl());
+        driver.findElement(By.id("name")).sendKeys("Thulani Tyaphile");
+        driver.findElement(By.id("email")).sendKeys("tj.tyaphile@gmail.com");
+        driver.findElement(By.id("login")).click();
+        driver.findElement(By.tagName("a")).click();
     }
 
     @BeforeEach
