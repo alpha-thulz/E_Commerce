@@ -1,33 +1,19 @@
 package za.co.tyaphile;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
 import io.javalin.Javalin;
-import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import io.javalin.http.staticfiles.Location;
 import io.javalin.plugin.bundled.CorsPluginConfig;
 import io.javalin.rendering.template.JavalinThymeleaf;
-import kong.unirest.JsonNode;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
-import za.co.tyaphile.api.OrderAPI;
-import za.co.tyaphile.api.ProductAPI;
-import za.co.tyaphile.api.UserAPI;
 import za.co.tyaphile.database.DatabaseManager;
-import za.co.tyaphile.order.Order;
-import za.co.tyaphile.order.OrdersDB;
-import za.co.tyaphile.product.Product;
-import za.co.tyaphile.product.ProductsDB;
 import za.co.tyaphile.routing.APIRouting;
-import za.co.tyaphile.user.User;
-import za.co.tyaphile.user.UserDB;
 
-import java.sql.SQLException;
-import java.util.*;
-import java.util.stream.Collectors;
-
-import static io.javalin.apibuilder.ApiBuilder.get;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class ECommerceServer {
     private Javalin server;

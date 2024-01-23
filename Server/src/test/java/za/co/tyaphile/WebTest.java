@@ -1,8 +1,6 @@
 package za.co.tyaphile;
 
 import io.github.bonigarcia.wdm.WebDriverManager;
-import kong.unirest.HttpResponse;
-import kong.unirest.JsonNode;
 import kong.unirest.Unirest;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -17,7 +15,6 @@ import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
