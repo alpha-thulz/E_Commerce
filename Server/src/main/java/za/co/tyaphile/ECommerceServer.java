@@ -18,7 +18,6 @@ import java.util.Map;
 public class ECommerceServer {
     private Javalin server;
     private DatabaseManager database;
-    private final int DEFAULT_PORT = 5000;
     private static final String PAGES_DIR = "/html/";
 
     private void init() {
@@ -33,7 +32,7 @@ public class ECommerceServer {
     }
 
     public void start() {
-        start(DEFAULT_PORT);
+        start(5000);
     }
 
     public void start(int PORT) {
